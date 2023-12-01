@@ -3,9 +3,12 @@ const rotas = express.Router();
 
 const {
     cadastrarUsuario,
-    login,
     detalharUsuario,
-    atualizarUsuario } = require('./controllers/usuarios');
+    atualizarUsuario
+} = require('./controllers/usuarios');
+
+    const { login } = require('./controllers/login');
+
 
 const { listarCategoria } = require('./controllers/categorias');
 
@@ -17,10 +20,16 @@ const {
     excluirTransacao,
     obterExtrato } = require('./controllers/transacao');
 
-const {autenticarLogin} = require('./middleware/intermediario')
+const { autenticarLogin } = require('./middleware/intermediario');
 
-rotas.post('/usuario', cadastrarUsuario)
-rotas.post('/login', login)
+const { schema } = require('./middleware/validate');
+const validateBody = require('./schemas/validate-usuario');
+const validateLogin = require('./schemas/validate-login');
+
+//---------------------------------------------------------------
+
+rotas.post('/usuario', schema(validateBody),cadastrarUsuario)
+rotas.post('/login', schema(validateLogin), login)
 
 rotas.use(autenticarLogin)
 

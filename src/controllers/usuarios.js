@@ -2,76 +2,33 @@ const pool = require('../connection')
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const tokenSenha = require('../config/token')
+const knex = require('../connection')
 const { validarDados } = require('../config/validacao');
+const queryUsuario  = require('../querys/query-usuarios');
 
 
 module.exports = {
     cadastrarUsuario: async (req, res) => {
         const { nome, email, senha } = req.body;
         
-        const dados = { nome, email, senha, numero: 1 }
-        if (!validarDados(dados)) {
-            return res.status(403).json({ mensagem: "Dados inválidos" })
-        }
-        
         try {
-            const emailExistente = await pool.query
-                ('select * from usuarios where email = $1', [email]);
-            
-            if (emailExistente.rows.length > 0) {
-                return res.status(403).json({ mensagem: "Já existe usuário cadastrado com o e-mail informado." })
+            const emailExistente = await knex.select('*')
+            .from('usuarios').where('email', email);   
+
+            if (emailExistente.length > 0) {
+        return res.status(403).json({ mensagem: "Já existe usuário cadastrado com o e-mail informado." })
             }
             const senhaCriptografada = await bcrypt.hash(senha, 10)
-            const usuario = await pool.query(`insert into usuarios(nome, email, senha) 
-            values ($1, $2, $3) returning*`, [nome, email, senhaCriptografada])
-    
-            const idUsuario = usuario.rows[0].id
-    
-            const usuarioCadastrado = {
-                id: idUsuario,
-                nome,
-                email
-            }
-    
-            return res.status(201).json(usuarioCadastrado)
+            const usuario = await queryUsuario.cadastro({ nome, email, senhaCriptografada })
+
+            return res.status(201).json(usuario[0])
             
         } catch (error) {
+            console.log(error.message);
             return res.status(404).json({mensagem:'O servidor não pode encontrar o recurso solicitado'})
         }
     },
 
-    login: async (req, res) => {
-        const { email, senha } = req.body;
-        const dados = { email, senha, numero: 2 }
-        if (!validarDados(dados)) {
-            return res.status(400).json({ mensagem: "Dados inválidos" })
-        }
-        try {
-            const usuario = await pool.query(
-                'select * from usuarios where email = $1',
-                [email]
-            )
-            if (usuario.rowCount < 1) {
-                return res.status(400).json({ mensagem: 'Email ou senha invalida' })
-            }
-            const senhaValida = await bcrypt.compare(senha, usuario.rows[0].senha)
-
-            if (!senhaValida) {
-                return res.status(400).json({ mensagem: 'Email ou senha invalida' })
-            }
-            
-            const token = jwt.sign({ id: usuario.rows[0].id }, tokenSenha, {
-                expiresIn: '8h'
-            })
-            const { senha: _, ...usuarioLogado } = usuario.rows[0]
-
-            return res.json({ usuario: usuarioLogado, token })
-
-        } catch (error) {
-            res.status(404).json({mensagem: 'O servidor não pode encontrar o recurso solicitado'})
-        }
-    
-    },
     detalharUsuario: async (req, res) => {
         try {
             const { authorization } = req.headers;
